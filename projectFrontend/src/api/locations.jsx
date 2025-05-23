@@ -14,7 +14,7 @@ export const getAllLocations = async () => {
 // Get location statistics
 export const getLocationStatistics = async () => {
     try {
-        const response = await axiosInstance.get('/locations/statistics/');
+        const response = await axiosInstance.get('/statistics');
         return response.data;
     } catch (error) {
         console.error('Error fetching location statistics:', error);

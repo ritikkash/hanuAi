@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { addLocation, getAllLocations } from '../api/locations';
+import { addLocation, getAllLocations, getLocationStatistics } from '../api/locations';
 
 // Loading spinner component
 const LoadingSpinner = () => (
@@ -57,11 +57,54 @@ const ErrorMessage = ({ message, onRetry }) => (
   </div>
 );
 
+// Statistics Card Component
+const StatCard = ({ title, value, icon, color }) => (
+  <div style={{
+    backgroundColor: 'white',
+    padding: '20px',
+    borderRadius: '8px',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+    border: '1px solid #e9ecef',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '15px'
+  }}>
+    <div style={{
+      width: '48px',
+      height: '48px',
+      borderRadius: '12px',
+      backgroundColor: `${color}15`,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: color
+    }}>
+      {icon}
+    </div>
+    <div>
+      <div style={{ 
+        color: '#6c757d',
+        fontSize: '14px',
+        marginBottom: '4px'
+      }}>
+        {title}
+      </div>
+      <div style={{ 
+        color: '#212529',
+        fontSize: '24px',
+        fontWeight: '600'
+      }}>
+        {value}
+      </div>
+    </div>
+  </div>
+);
+
 function ListLocations({ selectedLocation, onLocationSelect, onLocationsUpdate }) {
   const [locations, setLocations] = useState([]);
   const [newLocation, setNewLocation] = useState({
     name: '',
-    description: '',
+    category: '',
     latitude: '',
     longitude: ''
   });
@@ -69,6 +112,9 @@ function ListLocations({ selectedLocation, onLocationSelect, onLocationsUpdate }
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [statistics, setStatistics] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState(null);
 
   const fetchLocations = async () => {
     try {
@@ -92,8 +138,24 @@ function ListLocations({ selectedLocation, onLocationSelect, onLocationsUpdate }
     }
   };
 
+  const fetchStatistics = async () => {
+    try {
+      setStatsLoading(true);
+      setStatsError(null);
+      const stats = await getLocationStatistics();
+      console.log(stats);
+      setStatistics(stats);
+    } catch (error) {
+      console.error('Error fetching statistics:', error);
+      setStatsError('Failed to load statistics. Please try again.');
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchLocations();
+    fetchStatistics();
   }, []);
 
   useEffect(() => {
@@ -128,9 +190,13 @@ function ListLocations({ selectedLocation, onLocationSelect, onLocationsUpdate }
         throw new Error('Please select a location on the map');
       }
 
+      if (!newLocation.category) {
+        throw new Error('Please select a category');
+      }
+
       const locationData = {
         name: newLocation.name,
-        description: newLocation.description,
+        category: newLocation.category,
         latitude: parseFloat(newLocation.latitude),
         longitude: parseFloat(newLocation.longitude)
       };
@@ -142,7 +208,7 @@ function ListLocations({ selectedLocation, onLocationSelect, onLocationsUpdate }
       // Reset form
       setNewLocation({
         name: '',
-        description: '',
+        category: '',
         latitude: '',
         longitude: ''
       });
@@ -211,6 +277,24 @@ function ListLocations({ selectedLocation, onLocationSelect, onLocationsUpdate }
           }}
         >
           Add Location
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('stats');
+            fetchStatistics();
+          }}
+          style={{
+            flex: 1,
+            padding: '12px 20px',
+            border: 'none',
+            backgroundColor: activeTab === 'stats' ? '#007bff' : 'transparent',
+            color: activeTab === 'stats' ? 'white' : '#333',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+            fontWeight: '500'
+          }}
+        >
+          Statistics
         </button>
       </div>
 
@@ -306,7 +390,7 @@ function ListLocations({ selectedLocation, onLocationSelect, onLocationsUpdate }
               })
             )}
           </div>
-        ) : (
+        ) : activeTab === 'add' ? (
           <form onSubmit={handleSubmit} style={{ 
             backgroundColor: '#fff',
             padding: '25px',
@@ -351,29 +435,39 @@ function ListLocations({ selectedLocation, onLocationSelect, onLocationsUpdate }
                 color: '#495057',
                 fontWeight: '500'
               }}>
-                Description
+                Category
               </label>
-              <textarea
-                name="description"
-                value={newLocation.description}
-                onChange={handleInputChange}
-                required
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  border: '1px solid #ced4da',
-                  borderRadius: '6px',
-                  minHeight: '100px',
-                  fontSize: '14px',
-                  resize: 'vertical',
-                  transition: 'border-color 0.2s ease',
-                  ':focus': {
-                    borderColor: '#007bff',
-                    outline: 'none'
-                  }
-                }}
-                placeholder="Enter location description"
-              />
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                gap: '10px'
+              }}>
+                {['Restaurant', 'Hotel', 'Shopping', 'Entertainment', 'Landmark', 'Other'].map((category) => (
+                  <label
+                    key={category}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '10px',
+                      border: `1px solid ${newLocation.category === category ? '#007bff' : '#ced4da'}`,
+                      borderRadius: '6px',
+                      backgroundColor: newLocation.category === category ? '#e7f1ff' : 'white',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="category"
+                      value={category}
+                      checked={newLocation.category === category}
+                      onChange={handleInputChange}
+                      style={{ marginRight: '8px' }}
+                    />
+                    {category}
+                  </label>
+                ))}
+              </div>
             </div>
             <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
               <div style={{ flex: 1 }}>
@@ -463,15 +557,15 @@ function ListLocations({ selectedLocation, onLocationSelect, onLocationsUpdate }
             </div>
             <button
               type="submit"
-              disabled={isSubmitting || !selectedLocation}
+              disabled={isSubmitting || !selectedLocation || !newLocation.category}
               style={{
                 width: '100%',
                 padding: '12px',
-                backgroundColor: isSubmitting || !selectedLocation ? '#e9ecef' : '#007bff',
+                backgroundColor: isSubmitting || !selectedLocation || !newLocation.category ? '#e9ecef' : '#007bff',
                 color: 'white',
                 border: 'none',
                 borderRadius: '6px',
-                cursor: isSubmitting || !selectedLocation ? 'not-allowed' : 'pointer',
+                cursor: isSubmitting || !selectedLocation || !newLocation.category ? 'not-allowed' : 'pointer',
                 fontSize: '16px',
                 fontWeight: '500',
                 display: 'flex',
@@ -503,6 +597,142 @@ function ListLocations({ selectedLocation, onLocationSelect, onLocationsUpdate }
               )}
             </button>
           </form>
+        ) : (
+          <div>
+            {statsError && (
+              <ErrorMessage 
+                message={statsError} 
+                onRetry={fetchStatistics}
+              />
+            )}
+            
+            {statsLoading ? (
+              <LoadingSpinner />
+            ) : statistics ? (
+              <div style={{ display: 'grid', gap: '20px' }}>
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                  gap: '20px',
+                  marginBottom: '20px'
+                }}>
+                  <StatCard
+                    title="Total Locations"
+                    value={statistics.total_locations || 0}
+                    icon={
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                        <circle cx="12" cy="10" r="3" />
+                      </svg>
+                    }
+                    color="#007bff"
+                  />
+                  <StatCard
+                    title="Most Common Category"
+                    value={statistics.category_counts && statistics.category_counts.length > 0 
+                      ? statistics.category_counts.reduce((prev, current) => 
+                          (prev.count > current.count) ? prev : current
+                        ).category 
+                      : 'N/A'}
+                    icon={
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+                        <line x1="7" y1="7" x2="7.01" y2="7" />
+                      </svg>
+                    }
+                    color="#28a745"
+                  />
+                </div>
+
+                {statistics.recent_locations && statistics.recent_locations.length > 0 && (
+                  <div>
+                    <h3 style={{ 
+                      margin: '0 0 15px 0',
+                      color: '#212529',
+                      fontSize: '18px'
+                    }}>
+                      Recent Locations
+                    </h3>
+                    <div style={{ 
+                      display: 'grid',
+                      gap: '15px'
+                    }}>
+                      {statistics.recent_locations.map((location, index) => (
+                        <div
+                          key={index}
+                          style={{
+                            backgroundColor: '#f8f9fa',
+                            padding: '15px',
+                            borderRadius: '8px',
+                            border: '1px solid #e9ecef'
+                          }}
+                        >
+                          <div style={{ 
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '8px'
+                          }}>
+                            <h4 style={{ 
+                              margin: 0,
+                              color: '#212529',
+                              fontSize: '16px'
+                            }}>
+                              {location.name}
+                            </h4>
+                            <span style={{ 
+                              color: '#6c757d',
+                              fontSize: '14px'
+                            }}>
+                              {new Date(location.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <p style={{ 
+                            margin: '0 0 8px 0',
+                            color: '#6c757d',
+                            fontSize: '14px'
+                          }}>
+                            {location.description}
+                          </p>
+                          <div style={{ 
+                            color: '#868e96',
+                            fontSize: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px'
+                          }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                              <circle cx="12" cy="10" r="3" />
+                            </svg>
+                            {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ 
+                textAlign: 'center', 
+                padding: '40px 20px',
+                color: '#666',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '8px',
+                border: '2px dashed #dee2e6'
+              }}>
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginBottom: '15px' }}>
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+                <h3 style={{ margin: '0 0 10px 0', color: '#495057' }}>No Statistics Available</h3>
+                <p style={{ margin: '0', color: '#6c757d' }}>
+                  Add some locations to see statistics
+                </p>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
